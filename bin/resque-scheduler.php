@@ -54,18 +54,24 @@ if (!empty($INTERVAL)) {
     $interval = $INTERVAL;
 }
 
-$worker = new ResqueScheduler\Worker(ResqueScheduler\ResqueScheduler::QUEUE_NAME);
-$worker->registerLogger($logger);
-$worker->logLevel = $logLevel;
+$pid = pcntl_fork();
+if ($pid == -1) {
+    die("Could not fork worker " . $i . "\n");
+} elseif (!$pid) { // Child, start the worker
 
-$PIDFILE = getenv('PIDFILE');
-if ($PIDFILE) {
-    file_put_contents($PIDFILE, getmypid()) or
-        die('Could not write PID information to ' . $PIDFILE);
+    $worker = new ResqueScheduler\Worker(ResqueScheduler\ResqueScheduler::QUEUE_NAME);
+    $worker->registerLogger($logger);
+    $worker->logLevel = $logLevel;
+
+    $PIDFILE = getenv('PIDFILE');
+    if ($PIDFILE) {
+        file_put_contents($PIDFILE, getmypid()) or
+            die('Could not write PID information to ' . $PIDFILE);
+    }
+
+    logStart($logger, array('message' => '*** Starting scheduler worker ' . $worker, 'data' => array('type' => 'start', 'worker' => (string) $worker)), $logLevel);
+    $worker->work($interval);
 }
-
-logStart($logger, array('message' => '*** Starting scheduler worker ' . $worker, 'data' => array('type' => 'start', 'worker' => (string) $worker)), $logLevel);
-$worker->work($interval);
 
 function logStart($logger, $message, $logLevel)
 {
